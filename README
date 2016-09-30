@@ -26,10 +26,10 @@ issues
 
 does not handle unicode
 does not handle resizing your terminal
-does not handle lines longer than your terminal
-does not handle files bigger than your terminal
+does not properly handle lines longer than your terminal
+does not properly handle files bigger than your terminal
 
 
 what it looks like
 ----
-![Alt text](https://github.com/ehaliewicz/femto/raw/master/screenshot.png?raw=true)
+![Alt text](https://github.com/ehaliewicz/femto/raw/master/screenshot.png?raw=true "")
