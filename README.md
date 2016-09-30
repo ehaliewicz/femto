@@ -10,13 +10,14 @@ using
 ----
 
 mode 1:
+
 type anything you want (except Ctrl-x)
 
 
 mode 2:
-type Ctrl-x
-then type s to save, or c to quit
 
+type Ctrl-x
+then type s to save, or c to quit.
 anything else quits mode 2
 
 
