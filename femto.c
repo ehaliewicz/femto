@@ -325,6 +325,7 @@ void draw_buffer() {
     case '\n': 
       dcol = 0;
       drow++;
+      if(drow > window_height) { return; }
     default:
       dcol++;
     }
@@ -339,6 +340,7 @@ void draw_buffer() {
     case '\n': 
       dcol = 0;
       drow++;
+      if(drow > window_height) { return; }
     default:
       dcol++;
     }
