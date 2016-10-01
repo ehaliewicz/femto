@@ -15,6 +15,8 @@
 
 int window_height;
 int window_width;
+int buffer_window_height;
+
 
 
 int buffer_size;
@@ -24,6 +26,9 @@ int cur2;
 
 int currow;
 int curcol;
+
+int scrolly;
+int scrollx;
 
 char* buffer_filename;
 
@@ -50,6 +55,8 @@ char status_buf[STAT_BUF_SZ];
 void init_file_buffer(const char* filename) {
   currow = 0;
   curcol = 0;
+  scrollx = 0;
+  scrolly = 0;
 
   // if file exists, load buffer data and set buffer size
   if(access(filename, F_OK) != -1) {
@@ -120,6 +127,20 @@ void expand_buffer() {
 }
 
 
+void get_pos_from_cursor() {
+  int col = 0;
+  int row = 0;
+  for(int i = 0; i < cur1; i++) {
+    if(buffer[i] == '\n') {
+      row++;
+      col = 0;
+    } else {
+      col++;
+    }
+  }
+  curcol = col;
+  currow = row;
+}
 
 int get_col_from_cursor() {
   int col = 0;
@@ -161,6 +182,29 @@ Press 0             ^               ^
 */
 
 
+void update_scroll() {
+  if ((currow - scrolly) < 0) {
+    while ((currow - scrolly) < 0) {
+      scrolly--;
+    }
+  } else if ((currow - scrolly) >= buffer_window_height) {
+    while ((currow - scrolly) >= buffer_window_height) {
+      scrolly++;
+    }
+  }
+  
+  
+  if ((curcol - scrollx) < 0) {
+    while ((curcol - scrollx) < 0) {
+      scrollx--;
+    }
+  } else if ((curcol - scrollx) >= window_width) {
+    while ((curcol - scrollx) >= window_width) {
+      scrollx++;
+    }
+  }
+}
+
 void insert_char(char c) {
   
   if(cur1 == buffer_size || cur1 == cur2) {
@@ -174,10 +218,13 @@ void insert_char(char c) {
   if(c == '\n') {
     curcol = 0;
     currow++;
+    scrollx = 0;
   } else {
     curcol++;
   }
+  update_scroll();
 }
+
 
 
 void delete_char() {
@@ -189,11 +236,14 @@ void delete_char() {
     
     // track rows/columns
     if(c == '\n') {
-      currow--;
-      curcol = get_col_from_cursor();
+      get_pos_from_cursor();
+      scrollx = 0;
     } else {
       curcol--;
     }
+    
+    update_scroll();
+    
   }
 }
 
@@ -206,11 +256,13 @@ void cursor_left() {
     
     // track rows/columns
     if(c == '\n') {
-      currow--;
-      curcol = get_col_from_cursor();
+      get_pos_from_cursor();
+      scrollx = 0;
     } else {
       curcol--;
     }
+    
+    update_scroll();
   }
 }
 
@@ -222,16 +274,17 @@ void cursor_right() {
     buffer[cur1++] = buffer[cur2++];
     int c = buffer[cur1-1];
     
+    
+    
     // track rows/columns
     if(c == '\n') {
       currow++;
       curcol = 0;
+      scrollx = 0;
     } else {
       curcol++;
-      if(curcol > window_width) {
-        curcol--;
-      }
     }
+    update_scroll();
   }
 }
 
@@ -268,15 +321,16 @@ void cursor_up() {
     lastrow = currow;
     lastcol = curcol;
   }
-  
-  
 }
+
 
 void cursor_down() {
   int destrow = currow+1;
   int destcol = curcol;
   int lastrow = currow;
   int lastcol = curcol;
+  
+  int initrow = currow;
   
   // seek row
   while(currow < destrow) {
@@ -314,36 +368,44 @@ void draw_buffer() {
   int dcol = 0;
   int drow = 0;
   
+  
+  void draw_char(char c) {
+    if(drow >= scrolly && (drow-scrolly < buffer_window_height) && (dcol-scrollx < window_width)) {
+      if(drow == currow) {
+        if(dcol >= scrollx) {
+          waddch(buf_win, c);
+        }
+      } else {
+        waddch(buf_win, c);
+      }
+    }
+      
+    
+    
+    switch(c) {
+    case '\n':
+      dcol = 0;
+      drow++;
+      if(drow-scrolly > buffer_window_height) {
+        return;
+      }
+      break;
+    default:
+      dcol++;
+      break;
+    }
+  }
+  
   wmove(buf_win, 0, 0);
   
   // draw before gap
   for(int i = 0; i < cur1; i++) {
-    char c = buffer[i];
-    
-    waddch(buf_win, c);
-    switch(c) {
-    case '\n': 
-      dcol = 0;
-      drow++;
-      if(drow > window_height) { return; }
-    default:
-      dcol++;
-    }
+    draw_char(buffer[i]);
   }
   
   // draw after gap
   for(int i = cur2; i < buffer_size; i++) {
-    char c = buffer[i];
-    
-    waddch(buf_win, c);
-    switch(c) {
-    case '\n': 
-      dcol = 0;
-      drow++;
-      if(drow > window_height) { return; }
-    default:
-      dcol++;
-    }
+    draw_char(buffer[i]);
   }
 
   // draw until bottom of window
@@ -464,9 +526,9 @@ int main(int argc, char** argv) {
   // this isn't that great because if you resize the terminal the
   // editor will most like break (yeah i never tested)
   getmaxyx(stdscr, window_height, window_width);
+  buffer_window_height = window_height-1;
   
-  
-  buf_win = newwin(window_height-1, window_width, 0, 0);
+  buf_win = newwin(buffer_window_height, window_width, 0, 0);
   stat_win = newwin(1, window_width, window_height-1, 0);
   
   // set window colors
@@ -480,7 +542,7 @@ int main(int argc, char** argv) {
   
   while(1) {
     
-    wmove(buf_win, currow, curcol);
+    wmove(buf_win, currow-scrolly, curcol-scrollx);
     wrefresh(stat_win);
     wrefresh(buf_win);
 

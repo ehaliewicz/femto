@@ -1,5 +1,5 @@
 femto - a modal editor
-
+RSTRSTRSTRSTRSTRSTRSTRSTRSTRSTRSTRSTRSTRSTRSTRSTRSTRSTRSTRSTRSTRSTRSTRSTRSTRSTRST
 building
 -----
 
@@ -27,9 +27,6 @@ issues
 
 - does not handle unicode
 - does not handle resizing your terminal
-- does not properly handle lines longer than your terminal
-- does not properly handle files bigger than your terminal
-
 
 what it looks like
 ----
