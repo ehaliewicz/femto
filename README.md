@@ -1,4 +1,4 @@
-femto - a tiny editor
+femto - a tiny text editor
 
 building
 ----
