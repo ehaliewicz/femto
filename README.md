@@ -9,7 +9,9 @@ gcc femto.c -lncurses -o femto
 using
 ----
 
-type anything you want or type Ctrl-x, then type s to save, or c to quit.
+./femto text_file
+
+type anything you want (Ctrl-X s/c for save and quit).
 
 
 issues
