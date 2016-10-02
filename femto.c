@@ -243,9 +243,17 @@ void delete_char() {
     }
     
     update_scroll();
-    
   }
 }
+
+void delete_char_forward() {
+  if(cur2 == buffer_size) {
+    SET_STATUS("reached end of buffer");
+  } else {
+    cur2++;
+  }
+}
+
 
 void cursor_left() {
   if(cur1 == 0 || cur2 == 0) {
@@ -359,10 +367,31 @@ void cursor_down() {
     lastrow = currow;
     lastcol = curcol;
   }
-  
 }
 
 
+/*
+void delete_until(char c, int direction) {
+  if(direction) {
+    while(buffer[cur2 != c && cur2 != buffer_size)) {
+      cur2++;
+      }
+  }
+  else {
+    while(buffer[cur1-1] != c && cur1 > 0) {
+      cur1--;
+    }
+  }
+}
+
+void 
+  
+
+
+void delete_word() {
+  // delete until whitespace
+}
+*/
 
 void draw_buffer() {
   int dcol = 0;
@@ -471,6 +500,10 @@ void handle_key(int c) {
     delete_char();
     break;
     
+  case KEY_DELETE:
+    delete_char_forward();
+    break;
+    
   case 24:
     SET_STATUS("escaping next key");
     escape = 1;
@@ -509,7 +542,7 @@ int main(int argc, char** argv) {
   // explanation for nodelay()/getch() hack
 
   // using wgetch(buf_win) in the main loop below caused the terminal to echo characters
-  // pressed after a delete which fucks shit up
+  // pressed after a delete which messes everything up
 
   // so i'm using getch() on the base window (stdscr)
   // but getch() causes a refresh on the stdscr (which is unused)
@@ -565,4 +598,3 @@ int main(int argc, char** argv) {
     usleep(13000);
   }  
 }
-

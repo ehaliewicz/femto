@@ -1,7 +1,7 @@
-femto - a modal editor
-RSTRSTRSTRSTRSTRSTRSTRSTRSTRSTRSTRSTRSTRSTRSTRSTRSTRSTRSTRSTRSTRSTRSTRSTRSTRSTRST
+femto - a tiny editor
+
 building
------
+----
 
 gcc femto.c -lncurses -o femto
 
@@ -9,24 +9,16 @@ gcc femto.c -lncurses -o femto
 using
 ----
 
-mode 1:
-
-- type anything you want (except Ctrl-x)
-
-
-mode 2:
-
-- type Ctrl-x, then type s to save, or c to quit.
-- anything else quits mode 2
-
-
+type anything you want or type Ctrl-x, then type s to save, or c to quit.
 
 
 issues
------
+----
 
 - does not handle unicode
 - does not handle resizing your terminal
+- does not handle files larger than memory
+
 
 what it looks like
 ----
