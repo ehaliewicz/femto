@@ -5,7 +5,6 @@
 #include "ncurses.h"
 
 
-
 // simple gap-buffer based text editor
 
 // Ctrl-x s to save
@@ -17,21 +16,15 @@ int window_height;
 int window_width;
 int buffer_window_height;
 
-
-
 int buffer_size;
 char *buffer;
 int cur1;
 int cur2;
 
-int currow;
-int curcol;
-
-int scrolly;
-int scrollx;
+int currow, curcol;
+int scrolly, scrollx;
 
 char* buffer_filename;
-
 
 char* status = "";
 
@@ -52,6 +45,7 @@ char status_buf[STAT_BUF_SZ];
 
 #define CLEAR_STATUS() status = ""
 
+
 void init_file_buffer(const char* filename) {
   currow = 0;
   curcol = 0;
@@ -62,6 +56,9 @@ void init_file_buffer(const char* filename) {
   if(access(filename, F_OK) != -1) {
     // file exists
     FILE* fp = fopen(filename, "r");
+    if(fp == NULL) {
+      fatal("couldn't open file to read!\n");
+    }
     fseek(fp, 0L, SEEK_END);
     buffer_size = ftell(fp);
     fseek(fp, 0L, SEEK_SET);
@@ -72,8 +69,7 @@ void init_file_buffer(const char* filename) {
     
     fclose(fp);
     
-    cur1 = cur2 = 0;
-    currow = curcol = 0;
+    cur1 = cur2 = currow = curcol = 0;
     
     SET_STATUS("loaded %s", buffer_filename);
     
@@ -102,10 +98,11 @@ void save_buffer() {
   }
 }
 
+// called when gap is exhausted
 void expand_buffer() {
+  // this gives us a gap of half the current buffer size
   int newsize = buffer_size * 1.5;
   char* new_buf = calloc(newsize, 1);
-  int cursor_size = newsize - buffer_size;
   
   int new_gap = newsize - buffer_size;
   
@@ -338,8 +335,6 @@ void cursor_down() {
   int lastrow = currow;
   int lastcol = curcol;
   
-  int initrow = currow;
-  
   // seek row
   while(currow < destrow) {
     cursor_right();
@@ -368,30 +363,6 @@ void cursor_down() {
     lastcol = curcol;
   }
 }
-
-
-/*
-void delete_until(char c, int direction) {
-  if(direction) {
-    while(buffer[cur2 != c && cur2 != buffer_size)) {
-      cur2++;
-      }
-  }
-  else {
-    while(buffer[cur1-1] != c && cur1 > 0) {
-      cur1--;
-    }
-  }
-}
-
-void 
-  
-
-
-void delete_word() {
-  // delete until whitespace
-}
-*/
 
 void draw_buffer() {
   int dcol = 0;
@@ -440,7 +411,6 @@ void draw_buffer() {
   // draw until bottom of window
   while(drow < window_height) {
     waddch(buf_win, '\n');
-    drow++;
   }
 }
 
@@ -498,10 +468,6 @@ void handle_key(int c) {
   case KEY_BACKSPACE:
   case 127:
     delete_char();
-    break;
-    
-  case KEY_DELETE:
-    delete_char_forward();
     break;
     
   case 24:
@@ -566,10 +532,11 @@ int main(int argc, char** argv) {
   
   // set window colors
   start_color();
-  init_pair(1, COLOR_WHITE, COLOR_BLACK);
-  init_pair(2, COLOR_WHITE, COLOR_BLUE);
-  wbkgd(buf_win, COLOR_PAIR(1));
-  wbkgd(stat_win, COLOR_PAIR(2));
+  
+  init_pair(1, COLOR_WHITE, COLOR_BLUE);
+  
+  
+  wbkgd(stat_win, COLOR_PAIR(1));
   
   
   
@@ -581,7 +548,6 @@ int main(int argc, char** argv) {
 
     draw_buffer();
     draw_status();
-    
     
     
     int c = getch();
