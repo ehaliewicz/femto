@@ -81,7 +81,7 @@ void init_file_buffer(const char* filename) {
     
     fclose(fp);
     
-    cur1 = cur2 = currow = curcol = 0;
+    cur1 = cur2 = 0;
     
     SET_STATUS("loaded %s", buffer_filename);
     
@@ -89,7 +89,6 @@ void init_file_buffer(const char* filename) {
     buffer = calloc(buffer_size, 1);
     cur1 = 0;
     cur2 = buffer_size;
-    currow = curcol = 0;
     SET_STATUS("opened new file %s", buffer_filename);
   }
 }
@@ -438,8 +437,8 @@ int is_whitespace(char c) {
 }
 
 
-
 int exit_editor() {
+  free(buffer);
   exit(1);
   return 1;
 }
@@ -610,7 +609,7 @@ void record_and_execute(char c) {
   } else {
     status = cmd_buf;
     
-    for(int i = 0; i < NUM_CMDS; i++) {
+    for(unsigned int i = 0; i < NUM_CMDS; i++) {
       if(strcmp(commands[i].cmd_string, cmd_buf) == 0) {
         reset_command();
         commands[i].func();
