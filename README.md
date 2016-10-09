@@ -11,14 +11,22 @@ using
 
 ./femto text_file
 
-type anything you want (Ctrl-X s/c for save and quit).
 
+- Key combinations (currently hard-coded, and oriented for colemak usage)
+-- C-k    kill-line
+-- C-w    kill-word
+-- C-l    back-word
+-- C-u    forward-word
+-- C-x c  exit
+-- C-x s  save-buffer
+-- C-n    next-page
+-- C-p    prev-page
+-- C-j    insert-newline
 
 issues
 ----
 
 - does not handle unicode
-- does not handle resizing your terminal
 - does not handle files larger than memory
 
 

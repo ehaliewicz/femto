@@ -452,6 +452,7 @@ void forward_word() {
 }
 
 
+
 void draw_buffer() {
   int dcol = 0;
   int drow = 0;
@@ -506,7 +507,7 @@ void draw_buffer() {
 
 void draw_status() {
   wmove(stat_win, 0, 0);
-  wprintw(stat_win, "%s: %i,%i,%i,%i --- %s", buffer_filename, currow, curcol, COLS, LINES, status);
+  wprintw(stat_win, "%s: %i,%i --- %s", buffer_filename, currow, curcol, status);
   // draw until end of window
   for(int i = strlen(status); i < window_width; i++) {
     wprintw(stat_win, " ");
@@ -520,11 +521,15 @@ void cleanup() {
 
 void setup_screen();
 
-char buf[128];
 
+void refresh_editor() {
+  wmove(buf_win, currow-scrolly, curcol-scrollx);
+  wrefresh(stat_win);
+  wrefresh(buf_win);
 
-int do_resize = 0;
-
+  draw_status();
+  draw_buffer();
+}
 
 void handle_resize() {
   
@@ -534,22 +539,17 @@ void handle_resize() {
   
   setup_screen();
   
-  draw_status();
-  draw_buffer();
   
-  wmove(buf_win, currow-scrolly, curcol-scrollx);
-  wrefresh(stat_win);
-  wrefresh(buf_win);
-  
-  
+  refresh_editor();
 }
 
 
 int escape = 0;
+typedef void (*cmd_func)(void);
 
 typedef struct {
   char* cmd_string;
-  void (*func)(void);
+  cmd_func func;
 } cmd;
 
 #define CMD_BUF_SIZE 128
@@ -557,19 +557,19 @@ typedef struct {
 char cmd_buf[CMD_BUF_SIZE];
 int cmd_buf_ptr = 0;
 
-
+// these commands are colemak oriented
 
 cmd commands[] = {
   // {key combo, key function}
   {"C-k", kill_line},
   {"C-w", kill_word},
   {"C-l", back_word},
-  {"C-y", forward_word},
+  {"C-u", forward_word},
   {"C-x c", exit_editor},
   {"C-x s", save_buffer},
-  {"C-n", next_page}, {"C-v", next_page},
+  {"C-n", next_page},
   {"C-p", prev_page},
-  {"C-j", insert_newline}
+  {"C-j", insert_newline} // enter registers as Ctrl-j for some reason
 };
 
 #define NUM_CMDS (sizeof(commands) / sizeof(cmd)) 
@@ -722,14 +722,7 @@ int main(int argc, char** argv) {
   
   while(1) {
     
-    wmove(buf_win, currow-scrolly, curcol-scrollx);
-    wrefresh(stat_win);
-    wrefresh(buf_win);
-    
-    
-    draw_buffer();
-    draw_status();
-    
+    refresh_editor();
     
     int c = getch();
     if(c != ERR && c != KEY_RESIZE) {
