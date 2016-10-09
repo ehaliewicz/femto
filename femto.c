@@ -5,6 +5,7 @@
 #include "ncurses.h"
 
 #include "signal.h"
+#include "ctype.h"
 
 
 // simple gap-buffer based text editor
@@ -63,6 +64,7 @@ void init_file_buffer(const char* filename) {
   scrolly = 0;
 
   // if file exists, load buffer data and set buffer size
+  
   if(access(filename, F_OK) != -1) {
     // file exists
     FILE* fp = fopen(filename, "r");
@@ -88,16 +90,16 @@ void init_file_buffer(const char* filename) {
     cur1 = 0;
     cur2 = buffer_size;
     currow = curcol = 0;
-    
     SET_STATUS("opened new file %s", buffer_filename);
   }
 }
 
-void save_buffer() {
+int save_buffer() {
   // create or open (overwrite-mode)
   FILE *fp = fopen(buffer_filename, "w+");
   if(fp == NULL) {
     SET_STATUS("couldn't open file to save!");
+    return 0;
   } else {
     // save chars before cursor
     fwrite(buffer, 1, cur1, fp);
@@ -105,6 +107,7 @@ void save_buffer() {
     fwrite(buffer+cur2, 1, buffer_size-cur2, fp);
     fclose(fp);
     SET_STATUS("buffer saved");
+    return 1;
   }
 }
 
@@ -221,9 +224,10 @@ void update_scroll() {
 }
 
 
-void cursor_left() {
+int cursor_left() {
   if(cur1 == 0 || cur2 == 0) {
     SET_STATUS("reached beginning of buffer");
+    return 0;
   } else {
     char c = buffer[cur1-1];
     buffer[--cur2] = buffer[--cur1];
@@ -237,12 +241,14 @@ void cursor_left() {
     }
     
     update_scroll();
+    return 1;
   }
 }
 
-void cursor_right() {
+int cursor_right() {
   if(cur1 == buffer_size || cur2 == buffer_size) {
     SET_STATUS("reached end of buffer");
+    return 0;
   } else {
 
     buffer[cur1++] = buffer[cur2++];
@@ -259,10 +265,11 @@ void cursor_right() {
       curcol++;
     }
     update_scroll();
+    return 1;
   }
 }
 
-void cursor_up() {
+int cursor_up() {
   int destrow = currow-1;
   int destcol = curcol;
   int lastrow = currow;
@@ -273,7 +280,7 @@ void cursor_up() {
     cursor_left();
     if(lastrow == currow && lastcol == curcol) {
       SET_STATUS("reached beginning of buffer");
-      return;
+      return 0;
     }
     lastrow = currow;
     lastcol = curcol;
@@ -284,21 +291,21 @@ void cursor_up() {
     cursor_left();
     if(lastrow == currow && lastcol == curcol) {
       SET_STATUS("reached beginning of buffer");
-      return;
+      return 0;
     }
     
     // if we went to the next line above, scroll back and exit
     if(currow != destrow) {
-      cursor_right();
-      return;
+      return cursor_right();
     }
     lastrow = currow;
     lastcol = curcol;
   }
+  return 1;
 }
 
 
-void cursor_down() {
+int cursor_down() {
   int destrow = currow+1;
   int destcol = curcol;
   int lastrow = currow;
@@ -309,7 +316,7 @@ void cursor_down() {
     cursor_right();
     if(lastrow == currow && lastcol == curcol) {
       SET_STATUS("reached end of buffer");
-      return;
+      return 0;
     }
     lastrow = currow;
     lastcol = curcol;
@@ -320,33 +327,38 @@ void cursor_down() {
     cursor_right();
     if(lastrow == currow && lastcol == curcol) {
       SET_STATUS("reached end of buffer");
-      return;
+      return 0;
     }
     
     // if we went to the next line below, scroll back and exit
     if(currow != destrow) {
-      cursor_left();
-      return;
+      return cursor_left();
     }
     lastrow = currow;
     lastcol = curcol;
   }
+  return 1;
 }
 
 
-void prev_page() {
-  for(int i = 0; i < window_height; i++) {
-    cursor_up();
+int prev_page() {
+  for(int i = 0; i < (2*buffer_window_height); i++) {
+    if(!cursor_up()) { return 0; }
   }
+  return 1;
 }
 
-void next_page() {
-  for(int i = 0; i < window_height; i++) {
-    cursor_down();
+int next_page() {
+  for(int i = 0; i < (2*buffer_window_height); i++) {
+    if(!cursor_down()) { return 0; }
   }
+  for(int i = 0; i < buffer_window_height; i++) {
+    if(!cursor_up()) { return 0; }
+  }
+  return 1;
 }
 
-void insert_char(char c) {
+int insert_char(char c) {
   
   if(cur1 == buffer_size || cur1 == cur2) {
     expand_buffer();
@@ -363,13 +375,15 @@ void insert_char(char c) {
     curcol++;
   }
   update_scroll();
+  return 1;
 }
 
 
 
-void delete_char() {
+int delete_char() {
   if(cur1 == 0) {
     SET_STATUS("reached beginning of buffer");
+    return 0;
   } else {
     cur1--;
     char c = buffer[cur1];
@@ -383,27 +397,31 @@ void delete_char() {
     }
     
     update_scroll();
+    return 1;
   }
 }
 
 
-void delete_char_forward() {
+int delete_char_forward() {
   if(cur2 == buffer_size) {
     SET_STATUS("reached end of buffer");
+    return 0;
   } else {
     cur2++;
+    return 1;
   }
 }
 
 
-void kill_line() {
+int kill_line() {
   if(next_char() == '\n') { 
-    delete_char_forward();
+    if (!delete_char_forward()) { return 0;} 
   } else {
     while(next_char() != '\n') {
-      delete_char_forward();
+      if (!delete_char_forward()) { return 0; }
     }
   }
+  return 1;
 }
 
 int is_whitespace(char c) {
@@ -421,34 +439,38 @@ int is_whitespace(char c) {
 
 
 
-void exit_editor() {
+int exit_editor() {
   exit(1);
+  return 1;
 }
 
-void insert_newline() {
-  insert_char('\n');
+int insert_newline() {
+  return insert_char('\n');
 }
 
 
-void kill_word() {
+int kill_word() {
   while(is_whitespace(next_char())) {
-    delete_char_forward();
+    if(!delete_char_forward()) { return 0; };
   }
   do {
-    delete_char_forward();
+    if(!delete_char_forward()) { return 0; };
   } while(!is_whitespace(next_char()));
+  return 1;
 }
 
-void back_word() {
+int back_word() {
   do {
-    cursor_left();
+    if(!cursor_left()) { return 0; }
   } while (!is_whitespace(prev_char()));
+  return 1;
 }
 
-void forward_word() {
+int forward_word() {
   do {
-    cursor_right();
+    if(!cursor_right()) { return 0; }
   } while (!is_whitespace(next_char()));
+  return 1;
 }
 
 
@@ -502,6 +524,7 @@ void draw_buffer() {
   // draw until bottom of window
   while(drow < window_height) {
     waddch(buf_win, '\n');
+    drow++;
   }
 }
 
@@ -545,7 +568,7 @@ void handle_resize() {
 
 
 int escape = 0;
-typedef void (*cmd_func)(void);
+typedef int (*cmd_func)(void);
 
 typedef struct {
   char* cmd_string;
@@ -578,7 +601,6 @@ void reset_command() {
   escape = 0;
   cmd_buf_ptr = 0;
   memset(cmd_buf, 0, CMD_BUF_SIZE);
-  cmd_buf[0] = '\0';
 }
 
 void record_and_execute(char c) {
@@ -591,7 +613,8 @@ void record_and_execute(char c) {
     for(int i = 0; i < NUM_CMDS; i++) {
       if(strcmp(commands[i].cmd_string, cmd_buf) == 0) {
         reset_command();
-        return commands[i].func();
+        commands[i].func();
+        break;
       }
     }
   }
@@ -600,49 +623,50 @@ void record_and_execute(char c) {
 
 
 void handle_key(int c) {
-  if(c >> 5 == 0) {
-    
-    if((c | (0x3 << 5)) == 'g') { return reset_command(); }
-    if(escape) { record_and_execute(' '); }
-    escape = 1;
-    record_and_execute('C');
-    record_and_execute('-');
-    record_and_execute(c | (0x3 << 5));
-    
-  } else if (escape) {
-    record_and_execute(' ');
-    record_and_execute(c);
-    if(cmd_buf > 0) {
-      SET_STATUS("%s is undefined.", cmd_buf);
-      reset_command();
-    }
-  } else {
-    switch(c) {
   
-    case KEY_UP:
-      cursor_up();
-      break;
+  char* name;
+  switch(c) {
+  case KEY_UP:
+    cursor_up();
+    break;
   
-    case KEY_DOWN:
-      cursor_down();
-      break;
+  case KEY_DOWN:
+    cursor_down();
+    break;
   
-    case KEY_LEFT:
-    case 68:
-      cursor_left();
-      break;
+  case KEY_LEFT:
+    cursor_left();
+    break;
   
-    case KEY_RIGHT:
-    case 67:
-      cursor_right();
-      break;
+  case KEY_RIGHT:
+    cursor_right();
+    break;
     
-    case KEY_BACKSPACE:
-    case 127:
-      delete_char();
-      break;
+  case KEY_BACKSPACE:
+  case 127:
+    delete_char();
+    break;
     
-    default:
+  default:
+      
+    name = keyname(c);
+    
+    if(name[0] == '^') {
+      if(tolower(name[1]) == 'g') { return reset_command(); }
+      if(escape) { record_and_execute(' '); }
+      escape = 1;
+      record_and_execute('C');
+      record_and_execute('-');
+      record_and_execute(tolower(name[1]));
+    
+    } else if (escape) {
+      record_and_execute(' ');
+      record_and_execute(tolower(name[0]));
+      if(cmd_buf_ptr > 0) {
+        SET_STATUS("%s is undefined.", cmd_buf);
+        reset_command();
+      }
+    } else {
       insert_char(c);
       break;
     }
@@ -717,13 +741,12 @@ int main(int argc, char** argv) {
 
   atexit(cleanup);
 
-
   
   
   while(1) {
     
     refresh_editor();
-    
+        
     int c = getch();
     if(c != ERR && c != KEY_RESIZE) {
       // if getch got a ch
