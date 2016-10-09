@@ -137,6 +137,10 @@ char next_char() {
   return buffer[cur2];
 }
 
+char prev_char() {
+  return buffer[cur1-1];
+}
+
 
 void get_pos_from_cursor() {
   int col = 0;
@@ -402,6 +406,50 @@ void kill_line() {
   }
 }
 
+int is_whitespace(char c) {
+  switch(c) {
+  case ' ':
+  case '\t':
+  case '\v':
+  case '\r':
+  case '\n':
+    return 1;
+  default:
+    return 0;
+  }
+}
+
+
+
+void exit_editor() {
+  exit(1);
+}
+
+void insert_newline() {
+  insert_char('\n');
+}
+
+
+void kill_word() {
+  while(is_whitespace(next_char())) {
+    delete_char_forward();
+  }
+  do {
+    delete_char_forward();
+  } while(!is_whitespace(next_char()));
+}
+
+void back_word() {
+  do {
+    cursor_left();
+  } while (!is_whitespace(prev_char()));
+}
+
+void forward_word() {
+  do {
+    cursor_right();
+  } while (!is_whitespace(next_char()));
+}
 
 
 void draw_buffer() {
@@ -497,14 +545,6 @@ void handle_resize() {
 }
 
 
-void exit_editor() {
-  exit(1);
-}
-
-void insert_newline() {
-  insert_char('\n');
-}
-
 int escape = 0;
 
 typedef struct {
@@ -519,10 +559,12 @@ int cmd_buf_ptr = 0;
 
 
 
-
 cmd commands[] = {
   // {key combo, key function}
   {"C-k", kill_line},
+  {"C-w", kill_word},
+  {"C-l", back_word},
+  {"C-y", forward_word},
   {"C-x c", exit_editor},
   {"C-x s", save_buffer},
   {"C-n", next_page}, {"C-v", next_page},
@@ -556,10 +598,8 @@ void record_and_execute(char c) {
 }
 
 
+
 void handle_key(int c) {
-  //snprintf(buf, 128, "hit char %i/%i/%c\n", c, (c | (0x3 << 5)), c);
-  //status = buf;
-  //return;
   if(c >> 5 == 0) {
     
     if((c | (0x3 << 5)) == 'g') { return reset_command(); }
