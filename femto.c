@@ -4,6 +4,8 @@
 #include "unistd.h"
 #include "ncurses.h"
 
+#include "signal.h"
+
 
 // simple gap-buffer based text editor
 
@@ -14,6 +16,8 @@
 
 int window_height;
 int window_width;
+
+
 int buffer_window_height;
 
 int buffer_size;
@@ -36,7 +40,7 @@ void fatal(char *message) {
   fprintf(stderr,"fatal error: %s\n",message);
   exit(1);
 }
-#define STAT_BUF_SZ 32
+#define STAT_BUF_SZ 64
 char status_buf[STAT_BUF_SZ];
 
 #define SET_STATUS(msg, ...)                            \
@@ -123,6 +127,10 @@ void expand_buffer() {
   buffer_size = newsize;
 }
 
+char next_char() {
+  return buffer[cur2];
+}
+
 
 void get_pos_from_cursor() {
   int col = 0;
@@ -199,55 +207,6 @@ void update_scroll() {
     while ((curcol - scrollx) >= window_width) {
       scrollx++;
     }
-  }
-}
-
-void insert_char(char c) {
-  
-  if(cur1 == buffer_size || cur1 == cur2) {
-    expand_buffer();
-    SET_STATUS("expanded buffer");
-  }
-  
-  buffer[cur1++] = c;
-  
-  // track rows/columns
-  if(c == '\n') {
-    curcol = 0;
-    currow++;
-    scrollx = 0;
-  } else {
-    curcol++;
-  }
-  update_scroll();
-}
-
-
-
-void delete_char() {
-  if(cur1 == 0) {
-    SET_STATUS("reached beginning of buffer");
-  } else {
-    cur1--;
-    char c = buffer[cur1];
-    
-    // track rows/columns
-    if(c == '\n') {
-      get_pos_from_cursor();
-      scrollx = 0;
-    } else {
-      curcol--;
-    }
-    
-    update_scroll();
-  }
-}
-
-void delete_char_forward() {
-  if(cur2 == buffer_size) {
-    SET_STATUS("reached end of buffer");
-  } else {
-    cur2++;
   }
 }
 
@@ -364,13 +323,92 @@ void cursor_down() {
   }
 }
 
+
+void prev_page() {
+  for(int i = 0; i < window_height; i++) {
+    cursor_up();
+  }
+}
+
+void next_page() {
+  status = "next page";
+  for(int i = 0; i < window_height; i++) {
+    cursor_down();
+  }
+}
+
+void insert_char(char c) {
+  
+  if(cur1 == buffer_size || cur1 == cur2) {
+    expand_buffer();
+    SET_STATUS("expanded buffer");
+  }
+  
+  buffer[cur1++] = c;
+  
+  // track rows/columns
+  if(c == '\n') {
+    curcol = 0;
+    currow++;
+    scrollx = 0;
+  } else {
+    curcol++;
+  }
+  update_scroll();
+}
+
+
+
+void delete_char() {
+  if(cur1 == 0) {
+    SET_STATUS("reached beginning of buffer");
+  } else {
+    cur1--;
+    char c = buffer[cur1];
+    
+    // track rows/columns
+    if(c == '\n') {
+      get_pos_from_cursor();
+      scrollx = 0;
+    } else {
+      curcol--;
+    }
+    
+    update_scroll();
+  }
+}
+
+
+void delete_char_forward() {
+  if(cur2 == buffer_size) {
+    SET_STATUS("reached end of buffer");
+  } else {
+    cur2++;
+  }
+}
+
+
+void kill_line() {
+  if(next_char() == '\n') { 
+    delete_char_forward();
+  } else {
+    while(next_char() != '\n') {
+      delete_char_forward();
+    }
+  }
+}
+
+
+
 void draw_buffer() {
   int dcol = 0;
   int drow = 0;
   
+
   
   void draw_char(char c) {
-    if(drow >= scrolly && (drow-scrolly < buffer_window_height) && (dcol-scrollx < window_width)) {
+    if(drow >= scrolly &&
+       (drow-scrolly < buffer_window_height) && (dcol-scrollx < window_width)) {
       if(drow == currow) {
         if(dcol >= scrollx) {
           waddch(buf_win, c);
@@ -379,8 +417,6 @@ void draw_buffer() {
         waddch(buf_win, c);
       }
     }
-      
-    
     
     switch(c) {
     case '\n':
@@ -395,6 +431,8 @@ void draw_buffer() {
       break;
     }
   }
+
+
   
   wmove(buf_win, 0, 0);
   
@@ -416,7 +454,7 @@ void draw_buffer() {
 
 void draw_status() {
   wmove(stat_win, 0, 0);
-  wprintw(stat_win, "%s: %i,%i --- %s", buffer_filename, currow, curcol, status);
+  wprintw(stat_win, "%s: %i,%i,%i,%i --- %s", buffer_filename, currow, curcol, COLS, LINES, status);
   // draw until end of window
   for(int i = strlen(status); i < window_width; i++) {
     wprintw(stat_win, " ");
@@ -428,59 +466,193 @@ void cleanup() {
   endwin();
 }
 
+void setup_screen();
+
+char buf[128];
+
+
+int do_resize = 0;
+
+
+void handle_resize() {
+  
+  delwin(buf_win);
+  delwin(stat_win);
+  endwin();
+  
+  setup_screen();
+  
+  draw_status();
+  draw_buffer();
+  
+  wmove(buf_win, currow-scrolly, curcol-scrollx);
+  wrefresh(stat_win);
+  wrefresh(buf_win);
+  
+  
+}
+
+
+void exit_editor() {
+  exit(1);
+}
+
+void insert_newline() {
+  insert_char('\n');
+}
+
 int escape = 0;
 
-void handle_escape(int c) {
-  switch(c) {
-  case 's':
-    save_buffer();
-    break;
-  case 'c':
-    exit(1);
-    break;
-  default:
-    CLEAR_STATUS();
-    break;
+typedef struct {
+  char* cmd_string;
+  void (*func)(void);
+} cmd;
+
+#define CMD_BUF_SIZE 128
+
+char cmd_buf[CMD_BUF_SIZE];
+int cmd_buf_ptr = 0;
+
+
+
+
+cmd commands[] = {
+  {"C-k", kill_line},
+  {"C-x c", exit_editor},
+  {"C-x s", save_buffer},
+  {"C-n", next_page}, {"C-v", next_page},
+  {"C-p", prev_page},
+  {"C-j", insert_newline}
+};
+
+#define NUM_CMDS (sizeof(commands) / sizeof(cmd)) 
+
+void reset_command() {
+  escape = 0;
+  cmd_buf_ptr = 0;
+  memset(cmd_buf, 0, CMD_BUF_SIZE);
+  cmd_buf[0] = '\0';
+}
+
+void record_and_execute(char c) {
+  if(c == 103 && strcmp("C-", cmd_buf) == 0) {
+    return reset_command();
+  } else {
+  
+    cmd_buf[cmd_buf_ptr++] = c;
+    if(cmd_buf_ptr >= CMD_BUF_SIZE) {
+      return reset_command();
+    } else {
+      status = cmd_buf;
+    
+      for(int i = 0; i < NUM_CMDS; i++) {
+        if(strcmp(commands[i].cmd_string, cmd_buf) == 0) {
+          reset_command();
+          return commands[i].func();
+        }
+      }
+    }
   }
 }
 
+
 void handle_key(int c) {
-  switch(c) {
-  
-  case KEY_UP:
-    cursor_up();
-    break;
-  
-  case KEY_DOWN:
-    cursor_down();
-    break;
-  
-  case KEY_LEFT:
-  case 68:
-    cursor_left();
-    break;
-  
-  case KEY_RIGHT:
-  case 67:
-    cursor_right();
-    break;
-    
-  case KEY_BACKSPACE:
-  case 127:
-    delete_char();
-    break;
-    
-  case 24:
-    SET_STATUS("escaping next key");
+  //snprintf(buf, 128, "hit char %i/%i/%c\n", c, (c | (0x3 << 5)), c);
+  //status = buf;
+  //return;
+  if(c >> 5 == 0) {
     escape = 1;
-    break;
+    record_and_execute('C');
+    record_and_execute('-');
+    record_and_execute(c | (0x3 << 5));
+  } else if (escape) {
+    record_and_execute(' ');
+    record_and_execute(c);
+    if(cmd_buf > 0) {
+      SET_STATUS("%s is undefined.", cmd_buf);
+      reset_command();
+    }
+  } else {
+    switch(c) {
+  
+    case KEY_UP:
+      cursor_up();
+      break;
+  
+    case KEY_DOWN:
+      cursor_down();
+      break;
+  
+    case KEY_LEFT:
+    case 68:
+      cursor_left();
+      break;
+  
+    case KEY_RIGHT:
+    case 67:
+      cursor_right();
+      break;
     
+    case KEY_BACKSPACE:
+    case 127:
+      delete_char();
+      break;
     
-  default:
-    insert_char(c);
-    break;
+    default:
+      insert_char(c);
+      break;
+    }
   }
 }
+
+
+void setup_screen() {
+  initscr();
+  cbreak();
+  noecho();
+  keypad(stdscr, TRUE);
+  
+  
+  // explanation for nodelay()/getch() hack
+
+  // using wgetch(buf_win) in the main loop below caused the terminal to echo characters
+  // pressed after a delete which messes everything up
+
+  // so i'm using getch() on the base window (stdscr)
+  // but getch() causes a refresh on the stdscr (which is unused)
+  // clearing everything so that the subwindows aren't displayed
+  
+  // so i'm making getch() not block
+  // and running the main loop every ~13ms
+  // this works well and uses up little cpu 
+  // (also you get ~60fps editing :^) )
+  
+  nodelay(stdscr, TRUE);
+  
+  
+  // get dimensions of terminal
+  
+  //window_height = LINES;
+  //window_width = COLS;
+  getmaxyx(stdscr, window_height, window_width);
+  
+  
+  buffer_window_height = window_height-1;
+  
+  buf_win = newwin(buffer_window_height, window_width, 0, 0);
+  stat_win = newwin(1, window_width, buffer_window_height, 0);
+    
+  
+  
+  // set window colors
+  start_color();
+  
+  init_pair(1, COLOR_WHITE, COLOR_BLUE);
+  
+  
+  wbkgd(stat_win, COLOR_PAIR(1));
+}
+
 
 int main(int argc, char** argv) {
   // 1kB default buffer size for empty files
@@ -497,47 +669,11 @@ int main(int argc, char** argv) {
     exit(1);
   }
 
-  initscr();
-  cbreak();
-  noecho();
-  keypad(stdscr, TRUE);
+  setup_screen();
 
   atexit(cleanup);
-  
-    
-  // explanation for nodelay()/getch() hack
 
-  // using wgetch(buf_win) in the main loop below caused the terminal to echo characters
-  // pressed after a delete which messes everything up
 
-  // so i'm using getch() on the base window (stdscr)
-  // but getch() causes a refresh on the stdscr (which is unused)
-  // clearing everything so that the subwindows aren't displayed
-  
-  // so i'm making getch() not block
-  // and running the main loop every ~13ms
-  // this works well and uses up little cpu 
-  // (also you get ~60fps editing :^) )
-  
-  nodelay(stdscr, TRUE);
-
-  // get dimensions of terminal
-  // this isn't that great because if you resize the terminal the
-  // editor will most like break (yeah i never tested)
-  getmaxyx(stdscr, window_height, window_width);
-  buffer_window_height = window_height-1;
-  
-  buf_win = newwin(buffer_window_height, window_width, 0, 0);
-  stat_win = newwin(1, window_width, window_height-1, 0);
-  
-  // set window colors
-  start_color();
-  
-  init_pair(1, COLOR_WHITE, COLOR_BLUE);
-  
-  
-  wbkgd(stat_win, COLOR_PAIR(1));
-  
   
   
   while(1) {
@@ -545,21 +681,19 @@ int main(int argc, char** argv) {
     wmove(buf_win, currow-scrolly, curcol-scrollx);
     wrefresh(stat_win);
     wrefresh(buf_win);
-
+    
+    
     draw_buffer();
     draw_status();
     
     
     int c = getch();
-    if(c != ERR) {
+    if(c != ERR && c != KEY_RESIZE) {
       // if getch got a ch
       CLEAR_STATUS();
-      if(escape) {
-        escape = 0;
-        handle_escape(c);
-      } else {
-        handle_key(c);
-      }
+      handle_key(c);
+    } else if (c == KEY_RESIZE) {
+      handle_resize();
     }
     usleep(13000);
   }  
