@@ -40,14 +40,20 @@ void fatal(char *message) {
   fprintf(stderr,"fatal error: %s\n",message);
   exit(1);
 }
+
+
 #define STAT_BUF_SZ 64
 char status_buf[STAT_BUF_SZ];
+
 
 #define SET_STATUS(msg, ...)                            \
   snprintf(status_buf, STAT_BUF_SZ, msg, ##__VA_ARGS__);  \
   status = status_buf;                            
 
+
+
 #define CLEAR_STATUS() status = ""
+
 
 
 void init_file_buffer(const char* filename) {
@@ -331,7 +337,6 @@ void prev_page() {
 }
 
 void next_page() {
-  status = "next page";
   for(int i = 0; i < window_height; i++) {
     cursor_down();
   }
@@ -341,7 +346,6 @@ void insert_char(char c) {
   
   if(cur1 == buffer_size || cur1 == cur2) {
     expand_buffer();
-    SET_STATUS("expanded buffer");
   }
   
   buffer[cur1++] = c;
@@ -517,6 +521,7 @@ int cmd_buf_ptr = 0;
 
 
 cmd commands[] = {
+  // {key combo, key function}
   {"C-k", kill_line},
   {"C-x c", exit_editor},
   {"C-x s", save_buffer},
@@ -535,21 +540,16 @@ void reset_command() {
 }
 
 void record_and_execute(char c) {
-  if(c == 103 && strcmp("C-", cmd_buf) == 0) {
+  cmd_buf[cmd_buf_ptr++] = c;
+  if(cmd_buf_ptr >= CMD_BUF_SIZE) {
     return reset_command();
   } else {
-  
-    cmd_buf[cmd_buf_ptr++] = c;
-    if(cmd_buf_ptr >= CMD_BUF_SIZE) {
-      return reset_command();
-    } else {
-      status = cmd_buf;
+    status = cmd_buf;
     
-      for(int i = 0; i < NUM_CMDS; i++) {
-        if(strcmp(commands[i].cmd_string, cmd_buf) == 0) {
-          reset_command();
-          return commands[i].func();
-        }
+    for(int i = 0; i < NUM_CMDS; i++) {
+      if(strcmp(commands[i].cmd_string, cmd_buf) == 0) {
+        reset_command();
+        return commands[i].func();
       }
     }
   }
@@ -561,10 +561,14 @@ void handle_key(int c) {
   //status = buf;
   //return;
   if(c >> 5 == 0) {
+    
+    if((c | (0x3 << 5)) == 'g') { return reset_command(); }
+    if(escape) { record_and_execute(' '); }
     escape = 1;
     record_and_execute('C');
     record_and_execute('-');
     record_and_execute(c | (0x3 << 5));
+    
   } else if (escape) {
     record_and_execute(' ');
     record_and_execute(c);
