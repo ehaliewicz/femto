@@ -3,8 +3,6 @@
 #include "stdio.h"
 #include "unistd.h"
 #include "ncurses.h"
-
-#include "signal.h"
 #include "ctype.h"
 
 
@@ -15,16 +13,14 @@
 
 // Ctrl-c will also quit but might mess up your terminal (^:
 
-int window_height;
-int window_width;
-
+int window_height, window_width;
 
 int buffer_window_height;
 
 int buffer_size;
 char *buffer;
-int cur1;
-int cur2;
+int cur1, cur2;
+
 
 int currow, curcol;
 int scrolly, scrollx;
@@ -33,8 +29,7 @@ char* buffer_filename;
 
 char* status = "";
 
-WINDOW* buf_win;
-WINDOW* stat_win;
+WINDOW *buf_win, *stat_win;
 
 
 void fatal(char *message) {
@@ -46,22 +41,17 @@ void fatal(char *message) {
 #define STAT_BUF_SZ 64
 char status_buf[STAT_BUF_SZ];
 
-
 #define SET_STATUS(msg, ...)                            \
   snprintf(status_buf, STAT_BUF_SZ, msg, ##__VA_ARGS__);  \
   status = status_buf;                            
 
 
-
 #define CLEAR_STATUS() status = ""
 
 
-
 void init_file_buffer(const char* filename) {
-  currow = 0;
-  curcol = 0;
-  scrollx = 0;
-  scrolly = 0;
+  currow = curcol = 0;
+  scrollx = scrolly = 0;;
 
   // if file exists, load buffer data and set buffer size
   
@@ -200,25 +190,20 @@ Press 0             ^               ^
 
 
 void update_scroll() {
+  // if scrolled too far up
   if ((currow - scrolly) < 0) {
-    while ((currow - scrolly) < 0) {
-      scrolly--;
-    }
+    scrolly = currow;
+    // if scrolled too far down
   } else if ((currow - scrolly) >= buffer_window_height) {
-    while ((currow - scrolly) >= buffer_window_height) {
-      scrolly++;
-    }
+    scrolly = currow-buffer_window_height+1;
   }
   
-  
+  // if scrolled too far to the left
   if ((curcol - scrollx) < 0) {
-    while ((curcol - scrollx) < 0) {
-      scrollx--;
-    }
+    scrollx = curcol;
+    // if scrolled too far to the right
   } else if ((curcol - scrollx) >= window_width) {
-    while ((curcol - scrollx) >= window_width) {
-      scrollx++;
-    }
+    scrollx = curcol-window_width+1;
   }
 }
 
@@ -340,6 +325,7 @@ int cursor_down() {
 }
 
 
+// TODO: set correct cursor position for prev/next_page
 int prev_page() {
   for(int i = 0; i < (2*buffer_window_height); i++) {
     if(!cursor_up()) { return 0; }
@@ -477,9 +463,7 @@ int forward_word() {
 void draw_buffer() {
   int dcol = 0;
   int drow = 0;
-  
-
-  
+      
   void draw_char(char c) {
     if(drow >= scrolly &&
        (drow-scrolly < buffer_window_height) && (dcol-scrollx < window_width)) {
@@ -505,7 +489,6 @@ void draw_buffer() {
       break;
     }
   }
-
 
   
   wmove(buf_win, 0, 0);
@@ -543,7 +526,6 @@ void cleanup() {
 
 void setup_screen();
 
-
 void refresh_editor() {
   wmove(buf_win, currow-scrolly, curcol-scrollx);
   wrefresh(stat_win);
@@ -560,8 +542,7 @@ void handle_resize() {
   endwin();
   
   setup_screen();
-  
-  
+    
   refresh_editor();
 }
 
@@ -587,6 +568,7 @@ cmd commands[] = {
   {"C-w", kill_word},
   {"C-l", back_word},
   {"C-u", forward_word},
+  {"C-x C-c", exit_editor},
   {"C-x c", exit_editor},
   {"C-x s", save_buffer},
   {"C-n", next_page},
@@ -618,7 +600,6 @@ void record_and_execute(char c) {
     }
   }
 }
-
 
 
 void handle_key(int c) {
@@ -714,10 +695,12 @@ void setup_screen() {
   // set window colors
   start_color();
   
-  init_pair(1, COLOR_WHITE, COLOR_BLUE);
   
+  init_pair(1, COLOR_WHITE, COLOR_BLACK);
+  init_pair(2, COLOR_WHITE, COLOR_BLUE);
   
-  wbkgd(stat_win, COLOR_PAIR(1));
+  wattron(buf_win, COLOR_PAIR(1));
+  wattron(stat_win, COLOR_PAIR(2));
 }
 
 
@@ -740,7 +723,6 @@ int main(int argc, char** argv) {
 
   atexit(cleanup);
 
-  
   
   while(1) {
     
