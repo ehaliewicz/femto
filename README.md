@@ -12,7 +12,7 @@ gcc femto.c -lncurses -o femto
 ./femto text_file
 
 
-## Key combinations (currently hard-coded, and oriented for colemak usage)
+## key combinations (currently hard-coded, and oriented for colemak usage)
 * C-k    kill-line
 * C-w    kill-word
 * C-l    back-word
@@ -23,7 +23,7 @@ gcc femto.c -lncurses -o femto
 * C-p    prev-page
 * C-j    insert-newline
 
-## issues
+## limitations
 
 * does not handle unicode
 * does not handle files larger than memory
