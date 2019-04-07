@@ -6,7 +6,7 @@
 #include "ctype.h"
 
 
-// simple gap-buffer based text editor
+// gap-buffer based text editor
 
 // Ctrl-x s to save
 // Ctrl-x c to quit
@@ -30,6 +30,7 @@ char* buffer_filename;
 char* status = "";
 
 WINDOW *buf_win, *stat_win;
+
 
 
 void fatal(char *message) {
