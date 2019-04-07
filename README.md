@@ -16,7 +16,7 @@ gcc femto.c -lncurses -o femto
 * chorded key combinations
 * saves and loads ascii text files
 * vertical and horizontal scrolling
-* minibuffer showing current file, position in file, and current command keystrokes
+* minibuffer showing current file, position in file, status messages, and current command keystrokes
 
 ## limitations
 
