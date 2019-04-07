@@ -11,6 +11,17 @@ gcc femto.c -lncurses -o femto
 
 ./femto text_file
 
+## features
+
+* chorded key combinations
+* saves and loads ascii text files
+* vertical and horizontal scrolling
+* minibuffer showing current file, position in file, and current command keystrokes
+
+## limitations
+
+* does not handle unicode
+* does not handle files larger than memory
 
 ## key combinations (currently hard-coded, and oriented for colemak usage)
 * C-k    kill-line
@@ -22,11 +33,6 @@ gcc femto.c -lncurses -o femto
 * C-n    next-page
 * C-p    prev-page
 * C-j    insert-newline
-
-## limitations
-
-* does not handle unicode
-* does not handle files larger than memory
 
 
 ## what it looks like
